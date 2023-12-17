@@ -32,7 +32,7 @@ struct Configuration {
   String labels[5];
 } config;
 
-const int POSITIONS[] = { 1239, 1589, 1966, 2700, 2830 };  // 5 possible positions on the switch
+int POSITIONS[] = { 1239, 1589, 1966, 2700, 2830 };  // 5 possible positions on the switch, will get loaded from config
 const String labels1[] = { "OCF", "160M Vertical", "Grounded", "Unused", "Unused" };
 char buffer[100];
 // Set web server port number to 80
@@ -77,10 +77,11 @@ void setup() {
     as5600.setDirection(AS5600_CLOCK_WISE);  // default, just be explicit.
     Serial.print("AS5600 connect: ");
     Serial.println(as5600.readAngle());
-    /*while (!as5600.isConnected()) {
+    while (!as5600.isConnected()) {
       Serial.println("Still Waiting for the AS5600. Is it plugged in?");
-      delay(500);
-    }*/
+      WebSerial.println("Still Waiting for the AS5600. Is it plugged in?");
+      delay(100);
+    }
 
     switch1 = findCurrentPosition(as5600.readAngle());
     setpoint = POSITIONS[switch1];
@@ -100,7 +101,6 @@ void loop() {
   // slows down the stepper motor since this executes between every step
   if (loops % 10000 == 0) {
     ArduinoOTA.handle();
-    Serial.println(as5600.readAngle());
 
     if (!as5600.isConnected()) {
       // Safety stop - if we don 't know where we are then we don' t want to drive past limits
