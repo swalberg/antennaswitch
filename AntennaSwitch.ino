@@ -28,12 +28,11 @@ struct Configuration {
   char hostname[25];
   char ssid[32];
   char password[64];
-  int postitions[5];
-  String labels[5];
+  int stops[5];
+  char labels[5][30];
 } config;
 
-int POSITIONS[] = { 1239, 1589, 1966, 2700, 2830 };  // 5 possible positions on the switch, will get loaded from config
-const String labels1[] = { "OCF", "160M Vertical", "Grounded", "Unused", "Unused" };
+//int POSITIONS[] = { 1239, 1589, 1966, 2700, 2830 };  // 5 possible positions on the switch, will get loaded from config
 char buffer[100];
 // Set web server port number to 80
 AsyncWebServer server(80);
@@ -49,13 +48,13 @@ unsigned long previousTime = 0;
 const long timeoutTime = 2000;
 
 int switch1 = 2;
-int setpoint = POSITIONS[switch1];
+int setpoint = config.stops[switch1];
 int stepCount = 0;
 
 void setup() {
   Serial.begin(115200);
-  // ESP8266 wierdism... there's a shadow EEPROM we manipulate
   readConfig(config);
+
   WiFi.begin(config.ssid, config.password);
 
   if (testWifi()) {
@@ -64,7 +63,7 @@ void setup() {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     setupOta();
-    //   setupRoutes();
+    setupRoutes();
     WebSerial.begin(&server);
     WebSerial.msgCallback(receiveSerialMessage);
     server.begin();
@@ -84,7 +83,7 @@ void setup() {
     }
 
     switch1 = findCurrentPosition(as5600.readAngle());
-    setpoint = POSITIONS[switch1];
+    setpoint = config.stops[switch1];
     Serial.printf("Starting at position %d\n", switch1);
   } else {  // not configured or can't connect
     Serial.println("Turning the HotSpot On");
@@ -143,6 +142,61 @@ void receiveSerialMessage(uint8_t* data, size_t len) {
   }
   WebSerial.println(d);
 }
+
+void setupRoutes() {
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send_P(200, "text/html", index_html, processor);
+    WebSerial.println("Root page request");
+  });
+  server.on("/status.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send_P(200, "application/json", status_json, processor);
+  });
+  server.on("/config", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send_P(200, "text/html", config_html, processor);
+  });
+  server.on("/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+    int params = request->params();
+    for (int i = 0; i < params; i++) {
+      AsyncWebParameter* p = request->getParam(i);
+      if (p->isFile()) {  //p->isPost() is also true
+        Serial.printf("FILE[%s]: %s, size: %u\n", p->name().c_str(), p->value().c_str(), p->size());
+      } else if (p->isPost()) {
+        Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+      } else {
+        Serial.printf("GET[%s]: %s\n", p->name().c_str(), p->value().c_str());
+      }
+    }
+    
+    if (request->hasParam("ant1", true)) strcpy(config.labels[0], request->getParam("ant1", true)->value().c_str());
+    if (request->hasParam("ant2", true)) strcpy(config.labels[1], request->getParam("ant2", true)->value().c_str());
+    if (request->hasParam("ant3", true)) strcpy(config.labels[2], request->getParam("ant3", true)->value().c_str());
+    if (request->hasParam("ant4", true)) strcpy(config.labels[3], request->getParam("ant4", true)->value().c_str());
+    if (request->hasParam("ant5", true)) strcpy(config.labels[4], request->getParam("ant5", true)->value().c_str());
+    if (request->hasParam("stop1", true)) config.stops[0] = atoi(request->getParam("stop1", true)->value().c_str());
+    if (request->hasParam("stop2", true)) config.stops[1] = atoi(request->getParam("stop2", true)->value().c_str());
+    if (request->hasParam("stop3", true)) config.stops[2] = atoi(request->getParam("stop3", true)->value().c_str());
+    if (request->hasParam("stop4", true)) config.stops[3] = atoi(request->getParam("stop4", true)->value().c_str());
+    if (request->hasParam("stop5", true)) config.stops[4] = atoi(request->getParam("stop5", true)->value().c_str());
+    
+    writeConfig(config);
+    request->redirect("/config");
+  });
+}
+
+// Replaces placeholders in a page with dynamic info
+String processor(const String& var) {
+
+  if (var == "ANTENNA1") { return String(config.labels[0]); }
+  if (var == "ANTENNA2") { return String(config.labels[1]); }
+  if (var == "ANTENNA3") { return String(config.labels[2]); }
+  if (var == "ANTENNA4") { return String(config.labels[3]); }
+  if (var == "ANTENNA5") { return String(config.labels[4]); }
+  if (var == "ACTIVE_NUMBER") { return String(switch1); }
+
+  return String();  // default
+}
+
 
 void processWeb() {
   /*  WiFiClient client = server.available();  // Listen for incoming clients
@@ -216,21 +270,6 @@ void sendResponseHeader(WiFiClient client, String mimetype) {
   client.println();
 }
 
-void displayStatusJson(WiFiClient client) {
-  client.println("{");
-  client.printf("active: %d, \n", switch1);
-  client.println("antennas: [");
-  for (int i = 0; i < sizeof(POSITIONS) / sizeof(POSITIONS[0]); i++) {
-    client.print('"' + labels1[i] + '"');
-    if (i < (sizeof(POSITIONS) / sizeof(POSITIONS[0]) - 1)) {
-      client.print(", ");
-    }
-  }
-  client.println("]");
-
-  client.println("}");
-}
-
 void displayWebpage(WiFiClient client) {
   // Display the HTML web page
   client.println("<!DOCTYPE html><html>");
@@ -249,13 +288,13 @@ void displayWebpage(WiFiClient client) {
 
   client.println("<p>Transmit Antenna</p>");
   client.println("<table>  <tr>");
-  for (int i = 0; i < sizeof(POSITIONS) / sizeof(POSITIONS[0]); i++) {
-    client.println("<td>" + labels1[i] + "</td>");
+  for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
+    client.println("<td>" + String(config.labels[i]) + "</td>");
   }
   client.println("</tr>");
 
   client.println("<tr>");
-  for (int i = 0; i < sizeof(POSITIONS) / sizeof(POSITIONS[0]); i++) {
+  for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
     client.print("<td>");
     if (switch1 == i) {
       client.println("<p><a href=\"#\"><button class=\"button button2\">ACTIVE</button></a></p>");
@@ -273,7 +312,7 @@ void displayWebpage(WiFiClient client) {
   if (flashMessage != "") {
     client.printf("<h2 style=\"background-color: red\">%s</h2>", flashMessage);
   }
-  client.printf("<p>Current angle is %d and we're off by %d</p>", as5600.readAngle(), as5600.readAngle() - POSITIONS[switch1]);
+  client.printf("<p>Current angle is %d and we're off by %d</p>", as5600.readAngle(), as5600.readAngle() - config.stops[switch1]);
   client.println("</body></html>");
 
   // The HTTP response ends with another blank line
@@ -281,8 +320,8 @@ void displayWebpage(WiFiClient client) {
 }
 
 int findCurrentPosition(int angle) {
-  for (int i = 0; i < sizeof(POSITIONS) / sizeof(POSITIONS[0]); i++) {
-    if (abs(angle - POSITIONS[i]) < 10) {
+  for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
+    if (abs(angle - config.stops[i]) < 10) {
       return i;
     }
   }
