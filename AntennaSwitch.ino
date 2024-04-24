@@ -117,12 +117,10 @@ void loop() {
       WebSerial.printf("%d/%d: Currently at %d deg -> %d (delta %d), distance to go is %d (%0.2f)\n", as5600.isConnected(), motorActive, angle, setpoint, error, stepper.distanceToGo(), stepper.speed());
     }
 
-    if (abs(error) <= 5) {
+    if (abs(error) <= 5 && motorActive) {
       stepper.move(0);
       motorActive = false;
     } else {
-      motorActive = true;
-
       // I know steps has nothing to do with angles but it works for now
       int newSpeed = max(5, abs(error));
       stepper.move(error > 0 ? -newSpeed : newSpeed);
@@ -156,168 +154,64 @@ void setupRoutes() {
     request->send_P(200, "text/html", config_html, processor);
   });
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    int params = request->params();
-    for (int i = 0; i < params; i++) {
-      AsyncWebParameter* p = request->getParam(i);
-      if (p->isFile()) {  //p->isPost() is also true
-        Serial.printf("FILE[%s]: %s, size: %u\n", p->name().c_str(), p->value().c_str(), p->size());
-      } else if (p->isPost()) {
-        Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
-      } else {
-        Serial.printf("GET[%s]: %s\n", p->name().c_str(), p->value().c_str());
-      }
-    }
-    
-    if (request->hasParam("ant1", true)) strcpy(config.labels[0], request->getParam("ant1", true)->value().c_str());
-    if (request->hasParam("ant2", true)) strcpy(config.labels[1], request->getParam("ant2", true)->value().c_str());
-    if (request->hasParam("ant3", true)) strcpy(config.labels[2], request->getParam("ant3", true)->value().c_str());
-    if (request->hasParam("ant4", true)) strcpy(config.labels[3], request->getParam("ant4", true)->value().c_str());
-    if (request->hasParam("ant5", true)) strcpy(config.labels[4], request->getParam("ant5", true)->value().c_str());
-    if (request->hasParam("stop1", true)) config.stops[0] = atoi(request->getParam("stop1", true)->value().c_str());
-    if (request->hasParam("stop2", true)) config.stops[1] = atoi(request->getParam("stop2", true)->value().c_str());
-    if (request->hasParam("stop3", true)) config.stops[2] = atoi(request->getParam("stop3", true)->value().c_str());
-    if (request->hasParam("stop4", true)) config.stops[3] = atoi(request->getParam("stop4", true)->value().c_str());
-    if (request->hasParam("stop5", true)) config.stops[4] = atoi(request->getParam("stop5", true)->value().c_str());
-    
+    if (request->hasParam("ant0", true)) strcpy(config.labels[0], request->getParam("ant0", true)->value().c_str());
+    if (request->hasParam("ant1", true)) strcpy(config.labels[1], request->getParam("ant1", true)->value().c_str());
+    if (request->hasParam("ant2", true)) strcpy(config.labels[2], request->getParam("ant2", true)->value().c_str());
+    if (request->hasParam("ant3", true)) strcpy(config.labels[3], request->getParam("ant3", true)->value().c_str());
+    if (request->hasParam("ant4", true)) strcpy(config.labels[4], request->getParam("ant4", true)->value().c_str());
+    if (request->hasParam("stop0", true)) config.stops[0] = atoi(request->getParam("stop0", true)->value().c_str());
+    if (request->hasParam("stop1", true)) config.stops[1] = atoi(request->getParam("stop1", true)->value().c_str());
+    if (request->hasParam("stop2", true)) config.stops[2] = atoi(request->getParam("stop2", true)->value().c_str());
+    if (request->hasParam("stop3", true)) config.stops[3] = atoi(request->getParam("stop3", true)->value().c_str());
+    if (request->hasParam("stop4", true)) config.stops[4] = atoi(request->getParam("stop4", true)->value().c_str());
+
     writeConfig(config);
     request->redirect("/config");
   });
+
+  server.on("/move", HTTP_GET, [](AsyncWebServerRequest* request) {
+    if (request->hasParam("ant")) {
+      moveTo(atoi(request->getParam("ant")->value().c_str()));
+      WebSerial.println("Moving to " + request->getParam("ant")->value());
+      request->send(200, "text/html", "{\"status\": \"ok\"}");
+    } else {
+      WebSerial.println("I got asked to move but no antenna given");
+      request->send(412, "text/html", "{\"status\": \"need an antenna\"}");
+    }
+  });
+}
+
+void moveTo(int position) {
+  switch1 = position;
+  setpoint = config.stops[position];
+  motorActive = true;
 }
 
 // Replaces placeholders in a page with dynamic info
 String processor(const String& var) {
 
-  if (var == "ANTENNA1") { return String(config.labels[0]); }
-  if (var == "ANTENNA2") { return String(config.labels[1]); }
-  if (var == "ANTENNA3") { return String(config.labels[2]); }
-  if (var == "ANTENNA4") { return String(config.labels[3]); }
-  if (var == "ANTENNA5") { return String(config.labels[4]); }
+  if (var == "ANTENNA0") { return String(config.labels[0]); }
+  if (var == "ANTENNA1") { return String(config.labels[1]); }
+  if (var == "ANTENNA2") { return String(config.labels[2]); }
+  if (var == "ANTENNA3") { return String(config.labels[3]); }
+  if (var == "ANTENNA4") { return String(config.labels[4]); }
+  if (var == "STOP0") { return String(config.stops[0]); }
+  if (var == "STOP1") { return String(config.stops[1]); }
+  if (var == "STOP2") { return String(config.stops[2]); }
+  if (var == "STOP3") { return String(config.stops[3]); }
+  if (var == "STOP4") { return String(config.stops[4]); }
   if (var == "ACTIVE_NUMBER") { return String(switch1); }
+  if (var == "SWITCH_NAME") { return String("transmit"); }
+  if (var == "FLASH_MESSAGE") { return String(flashMessage); }
+  if (var == "MOTOR_STATUS") { return motorActive ? "true" : "false"; }
 
+
+  if (var == "DEBUG") {
+    return String("Current angle is " + String(as5600.readAngle()) + " and we're off by " + String(as5600.readAngle() - config.stops[switch1]));
+  }
   return String();  // default
 }
 
-
-void processWeb() {
-  /*  WiFiClient client = server.available();  // Listen for incoming clients
-  if (client) {                            // If a new client connects,
-    String currentLine = "";               // make a String to hold incoming data from the client
-    currentTime = millis();
-    previousTime = currentTime;
-    while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
-      currentTime = millis();
-      // if there's bytes to read from the client,
-      char c = client.read();  // read a byte, then
-      request += c;
-      if (c == '\n') {  // if the byte is a newline character
-        // if the current line is blank, you got two newline characters in a row.
-        // that's the end of the client HTTP request, so send a response:
-        if (currentLine.length() == 0) {
-
-          if (request.indexOf("GET /1/") >= 0) {
-            for (int i = 0; i < sizeof(POSITIONS) / sizeof(POSITIONS[0]); i++) {
-              sprintf(buffer, "GET /1/%d", i);
-              if (request.indexOf(buffer) >= 0) {
-                //Serial.println(buffer);
-                switch1 = i;
-                setpoint = POSITIONS[switch1];
-                break;
-              }
-            }
-          }
-
-          if (request.indexOf("PUT /1/") >= 0) {
-            String newSetting = request.substring(7); // end of /
-            
-            setpoint = newSetting.toInt();
-            Serial.printf("Manually settings setpoint to %s or %d\n", newSetting, setpoint);
-
-          }
-     
-          if (request.indexOf("GET /1.json") >= 0) {
-            sendResponseHeader(client, "text/json");
-            displayStatusJson(client);
-          } else {
-            sendResponseHeader(client, "text/html");
-            displayWebpage(client);
-          }
-
-
-          // Break out of the while loop
-          break;
-        } else {  // if you got a newline, then clear currentLine
-          currentLine = "";
-        }
-      } else if (c != '\r') {  // if you got anything else but a carriage return character,
-        currentLine += c;      // add it to the end of the currentLine
-      }
-    }
-    // Clear the request variable
-    request = "";
-    // Close the connection
-    client.stop();
-    //Serial.printf("Client disconnected at %d.\n", currentTime);
-    //Serial.println("");
-  } */
-}
-
-void sendResponseHeader(WiFiClient client, String mimetype) {
-  // HTTP requests always start with a response code (e.g. HTTP/1.1 200 OK)
-  // and a content-type so the client knows what's coming, then a blank line:
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-type: " + mimetype);
-  client.println("Connection: close");
-  client.println();
-}
-
-void displayWebpage(WiFiClient client) {
-  // Display the HTML web page
-  client.println("<!DOCTYPE html><html>");
-  client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-  client.println("<link rel=\"icon\" href=\"data:,\">");
-  // CSS to style the on/off buttons
-  // Feel free to change the background-color and font-size attributes to fit your preferences
-  client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-  client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
-  client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-  client.println(".button2 {background-color: #77878A;}</style></head>");
-
-  // Web Page Heading
-  client.println("<body><h1>Remote Antenna Switch</h1>");
-
-
-  client.println("<p>Transmit Antenna</p>");
-  client.println("<table>  <tr>");
-  for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
-    client.println("<td>" + String(config.labels[i]) + "</td>");
-  }
-  client.println("</tr>");
-
-  client.println("<tr>");
-  for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
-    client.print("<td>");
-    if (switch1 == i) {
-      client.println("<p><a href=\"#\"><button class=\"button button2\">ACTIVE</button></a></p>");
-    } else {
-      sprintf(buffer, "<p><a href=\"/1/%d\"><button class=\"button\">USE</button></a></p>", i);
-
-      client.println(buffer);
-    }
-    client.print("</td>");
-  }
-  client.println("</tr></table>");
-  if (motorActive) {
-    client.println("<h2 style=\"background-color: red\">Moving</h2>");
-  }
-  if (flashMessage != "") {
-    client.printf("<h2 style=\"background-color: red\">%s</h2>", flashMessage);
-  }
-  client.printf("<p>Current angle is %d and we're off by %d</p>", as5600.readAngle(), as5600.readAngle() - config.stops[switch1]);
-  client.println("</body></html>");
-
-  // The HTTP response ends with another blank line
-  client.println();
-}
 
 int findCurrentPosition(int angle) {
   for (int i = 0; i < sizeof(config.stops) / sizeof(config.stops[0]); i++) {
