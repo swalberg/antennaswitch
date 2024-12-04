@@ -1,7 +1,6 @@
 const char status_json[] PROGMEM = R"rawliteral(
   {
     "active": %ACTIVE_NUMBER%,
-    "moving": %MOTOR_STATUS%,
     "antennas": [
       "%ANTENNA0%", "%ANTENNA1%", "%ANTENNA2%", "%ANTENNA3%", "%ANTENNA4%"
     ],
@@ -22,11 +21,10 @@ const char config_html[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <form action="/config" method="POST">
-    <div><label for="ant0">1</label><input type="text" name="ant0" value="%ANTENNA0%" placeholder="Antenna1 name"><input type="text" name="stop0" value="%STOP0%" placeholder="Antenna1 stop"></div>
-    <div><label for="ant1">2</label><input type="text" name="ant1" value="%ANTENNA1%" placeholder="Antenna2 name"><input type="text" name="stop1" value="%STOP1%" placeholder="Antenna2 stop"></div>
-    <div><label for="ant2">3</label><input type="text" name="ant2" value="%ANTENNA2%" placeholder="Antenna3 name"><input type="text" name="stop2" value="%STOP2%" placeholder="Antenna3 stop"></div>
-    <div><label for="ant3">4</label><input type="text" name="ant3" value="%ANTENNA3%" placeholder="Antenna4 name"><input type="text" name="stop3" value="%STOP3%" placeholder="Antenna4 stop"></div>
-    <div><label for="ant4">5</label><input type="text" name="ant4" value="%ANTENNA4%" placeholder="Antenna5 name"><input type="text" name="stop4" value="%STOP4%" placeholder="Antenna5 stop"></div>
+    <div><label for="ant0">1</label><input type="text" name="ant0" value="%ANTENNA0%" placeholder="Antenna1 name"></div>
+    <div><label for="ant1">2</label><input type="text" name="ant1" value="%ANTENNA1%" placeholder="Antenna2 name"></div>
+    <div><label for="ant2">3</label><input type="text" name="ant2" value="%ANTENNA2%" placeholder="Antenna3 name"></div>
+    <div><label for="ant3">4</label><input type="text" name="ant3" value="%ANTENNA3%" placeholder="Antenna4 name"></div>
     <div><input type="submit"></div>
   </form>
 </body>
@@ -53,12 +51,12 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h1>Remote Antenna Switch - %SWITCH_NAME%</h1>
   <h2>%FLASH_MESSAGE%</h2>
   <table>
-  <tr><td>%ANTENNA0%</td><td>%ANTENNA1%</td><td>%ANTENNA2%</td><td>%ANTENNA3%</td><td>%ANTENNA4%</td></tr>
+  <tr><td>%ANTENNA0%</td><td>%ANTENNA1%</td><td>%ANTENNA2%</td><td>%ANTENNA3%</td><td>GROUND</td></tr>
     <tr><td><p><a href="#"><button class="button" id="0" onClick="move(this)">USE</button></a></p></td>
     <td><p><a href="#"><button class="button" id="1" onClick="move(this)">USE</button></a></p></td>
     <td><p><a href="#"><button class="button" id="2" onClick="move(this)">USE</button></a></p></td>
     <td><p><a href="#"><button class="button" id="3" onClick="move(this)">USE</button></a></p></td>
-    <td><p><a href="#"><button class="button" id="4" onClick="move(this)">USE</button></a></p></td></tr>
+    <td><p><a href="#"><button class="button" id="99" onClick="move(this)">USE</button></a></p></td></tr>
   
   </table>
   <h2 id="motorStatus"></h2>
@@ -78,14 +76,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     req.open('GET', "/status.json", true);
     req.onload  = function() {
       var j = req.response;
-      var m = document.getElementById("motorStatus");
-      if (j.moving) {
-        m.innerHTML = "Motor is moving";
-        m.class = "redbg";
-      } else {
-        m.innerHTML = "Motor is not moving";
-        m.class = "";
-      }
+    
       Array.from(document.getElementsByClassName("button")).forEach(
         function(element, index, array) {
           if (index == j.active) {
