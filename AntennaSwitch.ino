@@ -9,7 +9,7 @@
 #include "pages.h"
 
 #define DEFAULT_HOSTNAME "antennaswitch1"
-int pins[4] = { 14, 12, 13, 15 };
+int pins[4] = { 15, 12, 14, 13 };  // The ports on the ESP8266 don't line up to the ports on the switcher because they're out of order and I didn't notice.
 int LED = 2;
 struct Configuration {
   char hostname[25];
@@ -34,6 +34,10 @@ void setup() {
   readConfig(config);
 
   WiFi.begin(config.ssid, config.password);
+  for (int i = 0; i < 4; i++) {
+    pinMode(pins[i], OUTPUT);
+  }
+
 
   if (testWifi()) {
     Serial.println("Succesfully Connected!!!");
@@ -50,15 +54,11 @@ void setup() {
     Serial.println("Turning the HotSpot On");
     launchConfiguration();
   }
-  moveTo(0); // pick first antenna so we're going out somewhere...
 }
 
 void loop() {
-  loops++;
   if (loops % 10000 == 0) {
     ArduinoOTA.handle();
-
-    flashMessage = "";
   }
 }
 
@@ -106,12 +106,12 @@ void setupRoutes() {
   });
 }
 
-void moveTo(int position) {
-  allOff();
-  switch1 = position;
-  if (position >= 0 && position <= 3) { // ground all is a high number so will skip
-    digitalWrite(pins[position], HIGH);
+void moveTo(int port) {
+  WebSerial.printf("> %d\n", port);
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(pins[i], port == i ? HIGH : LOW);
   }
+  switch1 = port;
 }
 
 // Replaces placeholders in a page with dynamic info
