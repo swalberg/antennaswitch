@@ -21,12 +21,16 @@ const char config_html[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <form action="/config" method="POST">
-    <div><label for="ant0">1</label><input type="text" name="ant0" value="%ANTENNA0%" placeholder="Antenna1 name"></div>
-    <div><label for="ant1">2</label><input type="text" name="ant1" value="%ANTENNA1%" placeholder="Antenna2 name"></div>
-    <div><label for="ant2">3</label><input type="text" name="ant2" value="%ANTENNA2%" placeholder="Antenna3 name"></div>
-    <div><label for="ant3">4</label><input type="text" name="ant3" value="%ANTENNA3%" placeholder="Antenna4 name"></div>
+    <table>
+    <tr><th>#</th><th>Name</th><th>6M</th><th>10M</th><th>12M</th><th>15M</th><th>17M</th><th>20M</th><th>30M</th><th>40M</th><th>60M</th><th>80M</th><th>160M</th></tr>
+    <tr><td><label for="ant0">1</label></td><td><input type="text" name="ant0" value="%ANTENNA0%" placeholder="Antenna1 name">%ANTENNA0BANDS%</tr>
+    <tr><td><label for="ant1">2</label></td><td><input type="text" name="ant1" value="%ANTENNA1%" placeholder="Antenna2 name">%ANTENNA1BANDS%</tr>
+    <tr><td><label for="ant2">3</label></td><td><input type="text" name="ant2" value="%ANTENNA2%" placeholder="Antenna3 name">%ANTENNA2BANDS%</tr>
+    <tr><td><label for="ant3">4</label></td><td><input type="text" name="ant3" value="%ANTENNA3%" placeholder="Antenna4 name">%ANTENNA3BANDS%</tr>
+    </table>
     <div><input type="submit"></div>
   </form>
+  %DEBUG%
 </body>
 </html>
 )rawliteral";

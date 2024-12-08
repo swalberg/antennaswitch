@@ -1,24 +1,53 @@
-// Import required libraries
 #include <ArduinoOTA.h>
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ESP8266mDNS.h>
+#include <TinyXML.h>
 #include <WebSerial.h>
+#include <WiFiUdp.h>
 #include "pages.h"
+
+const int NUM_BANDS = 11;
+enum Bands {
+  B_6,
+  B_10,
+  B_12,
+  B_15,
+  B_17,
+  B_20,
+  B_30,
+  B_40,
+  B_60,
+  B_80,
+  B_160,
+  B_unknown
+};
+const int MAX_UDP_PACKET_SIZE = 255;
+
+WiFiUDP UDPInfo;
+unsigned int localUdpPort = 12060;
+char incomingPacket[MAX_UDP_PACKET_SIZE + 1];
+TinyXML xml;
+uint8_t buffer[150];  // For XML decoding
 
 #define DEFAULT_HOSTNAME "antennaswitch1"
 int pins[4] = { 15, 12, 14, 13 };  // The ports on the ESP8266 don't line up to the ports on the switcher because they're out of order and I didn't notice.
 int LED = 2;
+struct Antenna {
+  char label[30];
+  byte priority;
+  int bands;
+};
+
 struct Configuration {
   char hostname[25];
   char ssid[32];
   char password[64];
-  char labels[4][30];
+  Antenna antennas[4];
 } config;
 
-char buffer[100];
 // Set web server port number to 80
 AsyncWebServer server(80);
 
@@ -32,12 +61,13 @@ String flashMessage;
 void setup() {
   Serial.begin(115200);
   readConfig(config);
-
   WiFi.begin(config.ssid, config.password);
   for (int i = 0; i < 4; i++) {
     pinMode(pins[i], OUTPUT);
   }
-
+  UDPInfo.begin(localUdpPort);
+  // set up xml processing
+  xml.init((uint8_t*)buffer, sizeof(buffer), &XML_callback);
 
   if (testWifi()) {
     Serial.println("Succesfully Connected!!!");
@@ -50,6 +80,7 @@ void setup() {
     WebSerial.msgCallback(receiveSerialMessage);
     server.begin();
 
+
   } else {  // not configured or can't connect
     Serial.println("Turning the HotSpot On");
     launchConfiguration();
@@ -57,9 +88,44 @@ void setup() {
 }
 
 void loop() {
-  if (loops % 10000 == 0) {
-    ArduinoOTA.handle();
+  ArduinoOTA.handle();
+  handleXMLPacket();
+}
+
+// UDP processing of port 12060
+void handleXMLPacket() {
+  int packetSize = UDPInfo.parsePacket();
+  if (packetSize) {
+    int len = UDPInfo.read(incomingPacket, MAX_UDP_PACKET_SIZE);
+    xml.reset();
+    for (int i = 0; i < len; i++) {
+      xml.processChar(incomingPacket[i]);
+    }
   }
+}
+
+void XML_callback(uint8_t statusflags, char* tagName, uint16_t tagNameLen, char* data, uint16_t dataLen) {
+  if (!(statusflags & STATUS_TAG_TEXT)) {
+    return;  // only care about getting the tag data
+  }
+  if (!strcasecmp(tagName, "/RadioInfo/Freq")) {
+    WebSerial.printf("Received Packet to change to band %d which is antenna %d\n", band(atoi(data)), findBestAntenna(band(atoi(data))));
+    int antenna = findBestAntenna(band(atoi(data)));
+    if (antenna >= 0) {
+      moveTo(antenna);
+    }
+  }
+}
+
+int findBestAntenna(Bands band) {
+  int c = 1 << band;
+  for (int i = 0; i < 4; i++) {
+    //WebSerial.printf("checking antenna %d which has bands %d against %d, result is %d\n", i, config.antennas[i].bands, c, config.antennas[i].bands & c);
+    if ((config.antennas[i].bands & c) > 0) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 // Web serial callback for input. Doesn't do anything for now
@@ -85,10 +151,29 @@ void setupRoutes() {
     request->send_P(200, "text/html", config_html, processor);
   });
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    if (request->hasParam("ant0", true)) strcpy(config.labels[0], request->getParam("ant0", true)->value().c_str());
-    if (request->hasParam("ant1", true)) strcpy(config.labels[1], request->getParam("ant1", true)->value().c_str());
-    if (request->hasParam("ant2", true)) strcpy(config.labels[2], request->getParam("ant2", true)->value().c_str());
-    if (request->hasParam("ant3", true)) strcpy(config.labels[3], request->getParam("ant3", true)->value().c_str());
+    for (int i = 0; i < 4; i++) {
+      String rvar = "ant";
+      rvar += i;
+      // Label
+      if (request->hasParam(rvar, true)) {
+        strcpy(config.antennas[i].label, request->getParam(rvar, true)->value().c_str());
+      }
+      config.antennas[i].bands = 0;  // we only get in values that are set, so start from nothing and build up
+      int c = 1;
+      for (int b = 0; b < NUM_BANDS; b++) {
+        String band = "band_";
+        band += i;
+        band += "_";
+        band += b;
+        if (request->hasParam(band, true)) {
+          if (request->getParam(band, true)->value() == "on") {
+            config.antennas[i].bands |= c;  // set the bit, we support this band.
+          }
+        }
+        c *= 2;
+      }
+      // WebSerial.println(config.antennas[i].bands);
+    }
 
     writeConfig(config);
     request->redirect("/config");
@@ -117,17 +202,47 @@ void moveTo(int port) {
 // Replaces placeholders in a page with dynamic info
 String processor(const String& var) {
 
-  if (var == "ANTENNA0") { return String(config.labels[0]); }
-  if (var == "ANTENNA1") { return String(config.labels[1]); }
-  if (var == "ANTENNA2") { return String(config.labels[2]); }
-  if (var == "ANTENNA3") { return String(config.labels[3]); }
+  if (var == "ANTENNA0") { return String(config.antennas[0].label); }
+  if (var == "ANTENNA1") { return String(config.antennas[1].label); }
+  if (var == "ANTENNA2") { return String(config.antennas[2].label); }
+  if (var == "ANTENNA3") { return String(config.antennas[3].label); }
+  if (var == "ANTENNA0BANDS") { return checkboxes(0); }
+  if (var == "ANTENNA1BANDS") { return checkboxes(1); }
+  if (var == "ANTENNA2BANDS") { return checkboxes(2); }
+  if (var == "ANTENNA3BANDS") { return checkboxes(3); }
   if (var == "ACTIVE_NUMBER") { return String(switch1); }
   if (var == "SWITCH_NAME") { return String("transmit"); }
   if (var == "FLASH_MESSAGE") { return String(flashMessage); }
+  if (var == "DEBUG") {
+    String d = "";
+    for (int i = 0; i < 4; i++) {
+      d += config.antennas[i].bands;
+      d += "|";
+    }
+    return d;
+  }
 
   return String();  // default
 }
 
+String checkboxes(int ant) {
+  String out = "";
+  int c = 1;  // compare bit
+  for (int i = 0; i < NUM_BANDS; i++) {
+    String value = "";
+
+    if ((config.antennas[ant].bands & c) > 0) {
+      value += "checked";
+    }
+    out += String("<td><input type=\"checkbox\" name =\"band_");
+    out += ant;
+    out += "_";
+    out += i;
+    out += "\" " + value + "></td>";
+    c *= 2;
+  }
+  return out;
+}
 
 void setupOta() {
   // Hostname defaults to esp8266-[ChipID]
@@ -177,4 +292,46 @@ void allOff() {
   for (int i = 0; i < 4; i++) {
     digitalWrite(pins[i], LOW);
   }
+}
+
+Bands band(int freq) {
+  // Freq is in 10Hz, so 180740 is 1.807.40 on the dial
+  freq = freq / 100;  // drop the last digit
+  if (freq >= 50000) {
+    return B_6;
+  }
+  if (freq >= 28000) {
+    return B_10;
+  }
+  if (freq >= 24890) {
+    return B_12;
+  }
+  if (freq >= 24890) {
+    return B_12;
+  }
+  if (freq >= 21000) {
+    return B_15;
+  }
+  if (freq >= 18068) {
+    return B_17;
+  }
+  if (freq >= 14000) {
+    return B_20;
+  }
+  if (freq >= 10100) {
+    return B_30;
+  }
+  if (freq >= 7000) {
+    return B_40;
+  }
+  if (freq >= 5330) {
+    return B_60;
+  }
+  if (freq >= 3500) {
+    return B_80;
+  }
+  if (freq >= 1800) {
+    return B_160;
+  }
+  return B_unknown;
 }
