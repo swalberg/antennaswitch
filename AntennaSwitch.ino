@@ -25,7 +25,7 @@ enum Bands {
   B_unknown
 };
 const int MAX_UDP_PACKET_SIZE = 255;
-
+const unsigned long UNCONFIGURED_LIFE = 5 * 60 * 1000; // 5 minute timer while unconfigured
 WiFiUDP UDPInfo;
 unsigned int localUdpPort = 12060;
 char incomingPacket[MAX_UDP_PACKET_SIZE + 1];
@@ -52,7 +52,7 @@ struct Configuration {
 AsyncWebServer server(80);
 
 int loops = 0;
-int switch1 = 0;
+int activePort = 0;
 
 // Variable to store the HTTP request
 String request;
@@ -74,22 +74,52 @@ void setup() {
     // Print local IP address and start web server
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    setupOta();
-    setupRoutes();
-    WebSerial.begin(&server);
-    WebSerial.msgCallback(receiveSerialMessage);
-    server.begin();
-
-
-  } else {  // not configured or can't connect
-    Serial.println("Turning the HotSpot On");
-    launchConfiguration();
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    delay(100);
+    WiFi.softAP("switchconfig", "");
   }
+  setupOta();
+  setupRoutes();
+  WebSerial.begin(&server);
+  WebSerial.msgCallback(receiveSerialMessage);
+  server.begin();
 }
 
 void loop() {
   ArduinoOTA.handle();
   handleXMLPacket();
+}
+
+// If there's no value (default 255) in the first position, we've never been configured
+bool isConfigured() {
+  return EEPROM.read(0) != 255;
+}
+
+// are we connected to a wifi AP?
+bool isWifiConnected() {
+  return (WiFi.status() == WL_CONNECTED);
+}
+
+bool testWifi(void) {
+  int c = 0;
+  if (!isConfigured()) {
+    return false;
+  }
+
+  Serial.println("Waiting for Wifi to connect");
+  while (c < 20) {
+    if (isWifiConnected()) {
+      return true;
+    }
+    delay(500);
+    Serial.print("*");
+    c++;
+  }
+  Serial.println("");
+  Serial.println("Connect timed out, opening AP");
+  return false;
 }
 
 // UDP processing of port 12060
@@ -144,12 +174,32 @@ void setupRoutes() {
     request->send_P(200, "text/html", index_html, processor);
     WebSerial.println("Root page request");
   });
+
   server.on("/status.json", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send_P(200, "application/json", status_json, processor);
   });
+
+  server.on("/config_wifi", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send_P(200, "text/html", config_wifi, wifi_processor);
+  });
+  server.on("/config_wifi", HTTP_POST, [](AsyncWebServerRequest* request) {
+    if (request->hasParam("ssid", true) && request->hasParam("pass", true)) {
+      strcpy(config.hostname, request->getParam("hostname", true)->value().c_str());
+      strcpy(config.ssid, request->getParam("ssid", true)->value().c_str());
+      strcpy(config.password, request->getParam("pass", true)->value().c_str());
+      writeConfig(config);
+
+      request->send(200, "application/json", "{\"Success\":\"saved to eeprom... resetting to boot into new wifi\"}");
+      ESP.reset();
+    } else {
+      request->send(409, "application/json", "{\"Error\":\"Missing a ssid and password\"}");
+    }
+  });
+
   server.on("/config", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send_P(200, "text/html", config_html, processor);
   });
+
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     for (int i = 0; i < 4; i++) {
       String rvar = "ant";
@@ -172,17 +222,16 @@ void setupRoutes() {
         }
         c *= 2;
       }
-      // WebSerial.println(config.antennas[i].bands);
     }
 
     writeConfig(config);
     request->redirect("/config");
   });
 
-  server.on("/move", HTTP_GET, [](AsyncWebServerRequest* request) {
+  server.on("/change", HTTP_GET, [](AsyncWebServerRequest* request) {
     if (request->hasParam("ant")) {
       moveTo(atoi(request->getParam("ant")->value().c_str()));
-      WebSerial.println("Moving to " + request->getParam("ant")->value());
+      WebSerial.println("Changing to " + request->getParam("ant")->value());
       request->send(200, "text/html", "{\"status\": \"ok\"}");
     } else {
       WebSerial.println("I got asked to move but no antenna given");
@@ -196,7 +245,7 @@ void moveTo(int port) {
   for (int i = 0; i < 4; i++) {
     digitalWrite(pins[i], port == i ? HIGH : LOW);
   }
-  switch1 = port;
+  activePort = port;
 }
 
 // Replaces placeholders in a page with dynamic info
@@ -210,7 +259,7 @@ String processor(const String& var) {
   if (var == "ANTENNA1BANDS") { return checkboxes(1); }
   if (var == "ANTENNA2BANDS") { return checkboxes(2); }
   if (var == "ANTENNA3BANDS") { return checkboxes(3); }
-  if (var == "ACTIVE_NUMBER") { return String(switch1); }
+  if (var == "ACTIVE_NUMBER") { return String(activePort); }
   if (var == "SWITCH_NAME") { return String("transmit"); }
   if (var == "FLASH_MESSAGE") { return String(flashMessage); }
   if (var == "DEBUG") {
@@ -223,6 +272,38 @@ String processor(const String& var) {
   }
 
   return String();  // default
+}
+
+// template vars for wifi setup
+String wifi_processor(const String& var) {
+  if (var == "FOUND_NETWORKS") {
+    return String("Network scanning disabled...");
+  }
+  if (var == "xxxFOUND_NETWORKS") {
+    int n = WiFi.scanNetworks();
+    Serial.printf("There are %d networks\n", n);
+    if (n == 0) {
+      Serial.println("no networks found");
+      return String("No networks found.");
+    } else {
+      String foundNetworks = String("<ol>");
+      for (int i = 0; i < n; i++) {
+        // Print SSID and RSSI for each network found
+        foundNetworks += "<li>";
+        foundNetworks += WiFi.SSID(i);
+        foundNetworks += " (";
+        foundNetworks += WiFi.RSSI(i);
+
+        foundNetworks += ")";
+        foundNetworks += (WiFi.encryptionType(i) == ENC_TYPE_NONE) ? " " : "*";
+        foundNetworks += "</li>";
+      }
+      foundNetworks += "</ol>";
+      return (foundNetworks);
+    }
+  }
+
+  return String();  //default
 }
 
 String checkboxes(int ant) {

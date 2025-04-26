@@ -9,6 +9,17 @@ const char status_json[] PROGMEM = R"rawliteral(
 
 )rawliteral";
 
+const char config_wifi[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML>
+  <html>Hello from ESP8266 at %IPADDR%!!!
+  <p>%FOUND_NETWORKS%</p>
+  <form method='post' action='/config_wifi'>
+  <label>SSID: </label><input name='ssid' length=32>
+  <label>Password: </label><input name='pass' length=64>
+  <label>Hostname</label><input name='hostname'><input type='submit'></form>
+  </html>
+)rawliteral";
+
 const char config_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
@@ -56,21 +67,22 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h2>%FLASH_MESSAGE%</h2>
   <table>
   <tr><td>%ANTENNA0%</td><td>%ANTENNA1%</td><td>%ANTENNA2%</td><td>%ANTENNA3%</td><td>GROUND</td></tr>
-    <tr><td><p><a href="#"><button class="button" id="0" onClick="move(this)">USE</button></a></p></td>
-    <td><p><a href="#"><button class="button" id="1" onClick="move(this)">USE</button></a></p></td>
-    <td><p><a href="#"><button class="button" id="2" onClick="move(this)">USE</button></a></p></td>
-    <td><p><a href="#"><button class="button" id="3" onClick="move(this)">USE</button></a></p></td>
-    <td><p><a href="#"><button class="button" id="99" onClick="move(this)">USE</button></a></p></td></tr>
+    <tr><td><p><a href="#"><button class="button" id="0" onClick="change(this)">USE</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="1" onClick="change(this)">USE</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="2" onClick="change(this)">USE</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="3" onClick="change(this)">USE</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="99" onClick="change(this)">USE</button></a></p></td></tr>
   
   </table>
   <h2 id="motorStatus"></h2>
   <h3 id="debug"></h3>
+  <p>[<a href="/config">Configure ports</a>] [<a href="/config_wifi">Configure wifi</a>]</p>
   <script>
-  function move(el) {
+  function change(el) {
     var xhr = new XMLHttpRequest();
     console.log(el);
     console.log(el.id);
-    xhr.open("GET", "/move?ant=" + el.id);
+    xhr.open("GET", "/change?ant=" + el.id);
     xhr.send();
   }
 
@@ -92,7 +104,6 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         }
       );
-      document.getElementById("debug").innerHTML = j.debug;
     };
     req.send();
   }, 2000);
