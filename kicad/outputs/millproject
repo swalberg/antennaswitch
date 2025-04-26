@@ -1,0 +1,41 @@
+metric=1
+metricoutput=1
+output-dir=.
+basename=board
+zsafe=5
+zchange=30
+zchange-absolute=0
+zwork=-0.02
+zcut=-1
+isolation-width=1mm 
+
+outline=RemoteAntennaSwitch-Edge_Cuts.gbr
+cut-feed=300
+cutter-diameter=1.11
+cut-speed=9000
+cut-infeed=1
+cut-side=back
+
+front=RemoteAntennaSwitch-F_Cu.gbr
+back=RemoteAntennaSwitch-B_Cu.gbr
+mill-feed=400
+mill-speed=9000
+mill-diameters=0.04
+
+drill=RemoteAntennaSwitch-PTH.drl
+#drills-available=0.01inches:+0.01inches:-0 # didn't make any holes, just the path
+drills-available=0.4mm
+nog81=1 # we don't support G81 which does something to do with automatically drilling
+#### if we want to milldrill
+#milldrill-diameter=0.1mm
+#milldrill=1
+
+#Do standard drilling, but we're just tapping a hole
+milldrill=0
+zdrill=-0.3mm
+
+drill-feed=300
+drill-speed=9000
+drill-side=back
+onedrill=true
+

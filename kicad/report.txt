@@ -1,0 +1,12 @@
+Warning: Width correction constrained.  The width correction value must be in the range of [0.000001 mm; 0.199999 mm] for the current design rules.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-F_Cu.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-B_Cu.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-F_Paste.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-B_Paste.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-F_Silkscreen.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-B_Silkscreen.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-F_Mask.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-B_Mask.gbr'.
+Plotted to '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-Edge_Cuts.gbr'.
+Created Gerber job file '/Users/sean/Documents/KiCad/8.0/projects/RemoteAntennaSwitch/outputs/RemoteAntennaSwitch-job.gbrjob'.
+Info: Done.
