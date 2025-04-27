@@ -25,12 +25,13 @@ enum Bands {
   B_unknown
 };
 const int MAX_UDP_PACKET_SIZE = 255;
-const unsigned long UNCONFIGURED_LIFE = 5 * 60 * 1000; // 5 minute timer while unconfigured
+const unsigned long UNCONFIGURED_LIFE = 5 * 60 * 1000;  // 5 minute timer while unconfigured
 WiFiUDP UDPInfo;
 unsigned int localUdpPort = 12060;
 char incomingPacket[MAX_UDP_PACKET_SIZE + 1];
 TinyXML xml;
 uint8_t buffer[150];  // For XML decoding
+bool eligibleForRestart = false;
 
 #define DEFAULT_HOSTNAME "antennaswitch1"
 int pins[4] = { 15, 12, 14, 13 };  // The ports on the ESP8266 don't line up to the ports on the switcher because they're out of order and I didn't notice.
@@ -79,6 +80,7 @@ void setup() {
     WiFi.disconnect();
     delay(100);
     WiFi.softAP("switchconfig", "");
+    eligibleForRestart = true;
   }
   setupOta();
   setupRoutes();
@@ -90,6 +92,11 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
   handleXMLPacket();
+
+  // If we've been sitting around in a state where we might have come up before wifi for too long, restart
+  if (eligibleForRestart && millis() > UNCONFIGURED_LIFE) {
+    ESP.reset();
+  }
 }
 
 // If there's no value (default 255) in the first position, we've never been configured
@@ -124,6 +131,9 @@ bool testWifi(void) {
 
 // UDP processing of port 12060
 void handleXMLPacket() {
+  // we've received something, so even if we're unconfigured, we must be on a network with a radio so don't restart automatically
+  eligibleForRestart = false;
+
   int packetSize = UDPInfo.parsePacket();
   if (packetSize) {
     int len = UDPInfo.read(incomingPacket, MAX_UDP_PACKET_SIZE);

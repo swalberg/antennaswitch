@@ -41,7 +41,6 @@ const char config_html[] PROGMEM = R"rawliteral(
     </table>
     <div><input type="submit"></div>
   </form>
-  %DEBUG%
 </body>
 </html>
 )rawliteral";
