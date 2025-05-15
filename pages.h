@@ -4,6 +4,7 @@ const char status_json[] PROGMEM = R"rawliteral(
     "antennas": [
       "%ANTENNA0%", "%ANTENNA1%", "%ANTENNA2%", "%ANTENNA3%", "%ANTENNA4%"
     ],
+    "manual": %MANUAL%,
     "debug": "%DEBUG%"
   }
 
@@ -95,7 +96,11 @@ const char index_html[] PROGMEM = R"rawliteral(
       Array.from(document.getElementsByClassName("button")).forEach(
         function(element, index, array) {
           if (index == j.active) {
-            element.innerHTML = "ACTIVE";
+            if (j.manual) {
+              element.innerHTML = "LOCKED";
+            } else {
+              element.innerHTML = "ACTIVE";
+            }
             element.class = "button button2";
           } else {
             element.innerHTML = "USE";

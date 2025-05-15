@@ -24,6 +24,9 @@ enum Bands {
   B_160,
   B_unknown
 };
+Bands manualLocked = B_unknown;
+Bands currentBand = B_unknown;
+
 const int MAX_UDP_PACKET_SIZE = 255;
 const unsigned long UNCONFIGURED_LIFE = 5 * 60 * 1000;  // 5 minute timer while unconfigured
 WiFiUDP UDPInfo;
@@ -150,9 +153,14 @@ void XML_callback(uint8_t statusflags, char* tagName, uint16_t tagNameLen, char*
   }
   if (!strcasecmp(tagName, "/RadioInfo/Freq")) {
     WebSerial.printf("Received Packet to change to band %d which is antenna %d\n", band(atoi(data)), findBestAntenna(band(atoi(data))));
-    int antenna = findBestAntenna(band(atoi(data)));
-    if (antenna >= 0) {
-      moveTo(antenna);
+    currentBand = band(atoi(data));
+    if (currentBand != manualLocked) {
+      // switched bands on the radio, leave locked mode
+      manualLocked = B_unknown;
+      int antenna = findBestAntenna(currentBand);
+      if (antenna >= 0) {
+        moveTo(antenna);
+      }
     }
   }
 }
@@ -240,6 +248,7 @@ void setupRoutes() {
 
   server.on("/change", HTTP_GET, [](AsyncWebServerRequest* request) {
     if (request->hasParam("ant")) {
+      manualLocked = currentBand;  // Save the current band because we are locked to this antenna for this band
       moveTo(atoi(request->getParam("ant")->value().c_str()));
       WebSerial.println("Changing to " + request->getParam("ant")->value());
       request->send(200, "text/html", "{\"status\": \"ok\"}");
@@ -272,6 +281,7 @@ String processor(const String& var) {
   if (var == "ACTIVE_NUMBER") { return String(activePort); }
   if (var == "SWITCH_NAME") { return String("transmit"); }
   if (var == "FLASH_MESSAGE") { return String(flashMessage); }
+  if (var == "MANUAL") { return manualLocked == B_unknown ? "false" : "true"; }
   if (var == "DEBUG") {
     String d = "";
     for (int i = 0; i < 4; i++) {
