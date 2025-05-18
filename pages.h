@@ -116,3 +116,54 @@ const char index_html[] PROGMEM = R"rawliteral(
 </body>
 </html>
 )rawliteral";
+
+
+const char debug_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html>
+<head>
+  <title>Antenna switch</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <style>
+    html {font-family: Arial; display: inline-block; text-align: center;}
+    h2 {font-size: 3.0rem;}
+    xxp {font-size: 3.0rem;}
+    body {max-width: 600px; margin:0px auto; padding-bottom: 25px;}
+    .button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;}
+    .button2 {background-color: #77878A;}
+    .redbg { background-color: red;}
+  </style>
+</head>
+<body>
+  <h1>Remote Antenna Switch - %SWITCH_NAME%</h1>
+  <h2>%FLASH_MESSAGE%</h2>
+  <table>
+  <tr><td>%ANTENNA0%</td><td>%ANTENNA1%</td><td>%ANTENNA2%</td><td>%ANTENNA3%</td><td>GROUND</td></tr>
+    <tr><td><p><a href="#"><button class="button" id="on0" onClick="on(0)">ON</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="on1" onClick="on(1)">ON</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="on2" onClick="on(2)">ON</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="on3" onClick="on(3)">ON</button></a></p></td></tr>  
+
+    <tr><td><p><a href="#"><button class="button" id="off0" onClick="off(0)">OFF</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="off1" onClick="off(1)">OFF</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="off2" onClick="off(2)">OFF</button></a></p></td>
+    <td><p><a href="#"><button class="button" id="off3" onClick="off(3)">OFF</button></a></p></td></tr>  
+  </table>
+  <h3 id="debug"></h3>
+  <script>
+  function on(id) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/on?ant=" + id);
+    xhr.send();
+  }
+
+  function off(id) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/off?ant=" + id);
+    xhr.send();
+  }
+
+  </script>
+</body>
+</html>
+)rawliteral";

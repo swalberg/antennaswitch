@@ -159,6 +159,7 @@ void XML_callback(uint8_t statusflags, char* tagName, uint16_t tagNameLen, char*
       manualLocked = B_unknown;
       int antenna = findBestAntenna(currentBand);
       if (antenna >= 0) {
+        WebSerial.printf("Switching to antenna %d\n", antenna);
         moveTo(antenna);
       }
     }
@@ -257,8 +258,36 @@ void setupRoutes() {
       request->send(412, "text/html", "{\"status\": \"need an antenna\"}");
     }
   });
-}
 
+  server.on("/debug", HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send_P(200, "text/html", debug_html, processor);
+  });
+
+  server.on("/on", HTTP_GET, [](AsyncWebServerRequest* request) {
+    manualLocked = currentBand;  // lock it!
+    if (request->hasParam("ant")) {
+      WebSerial.println("on - " + request->getParam("ant")->value());
+
+      digitalWrite(pins[atoi(request->getParam("ant")->value().c_str())], HIGH);
+      request->send(200, "text/html", "{\"status\": \"ok\"}");
+
+    } else {
+      request->send(412, "text/html", "{\"status\": \"need an antenna\"}");
+    }
+  });
+
+  server.on("/off", HTTP_GET, [](AsyncWebServerRequest* request) {
+    manualLocked = currentBand;  // lock it!
+    if (request->hasParam("ant")) {
+      WebSerial.println("off - " + request->getParam("ant")->value());
+      digitalWrite(pins[atoi(request->getParam("ant")->value().c_str())], LOW);
+      request->send(200, "text/html", "{\"status\": \"ok\"}");
+
+    } else {
+      request->send(412, "text/html", "{\"status\": \"need an antenna\"}");
+    }
+  });
+}
 void moveTo(int port) {
   WebSerial.printf("> %d\n", port);
   for (int i = 0; i < 4; i++) {
