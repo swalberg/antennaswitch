@@ -314,7 +314,7 @@ String processor(const String& var) {
   if (var == "DEBUG") {
     String d = "";
     for (int i = 0; i < 4; i++) {
-      d += config.antennas[i].bands;
+      d += digitalRead(pins[i]);
       d += "|";
     }
     return d;

@@ -149,7 +149,7 @@ const char debug_html[] PROGMEM = R"rawliteral(
     <td><p><a href="#"><button class="button" id="off2" onClick="off(2)">OFF</button></a></p></td>
     <td><p><a href="#"><button class="button" id="off3" onClick="off(3)">OFF</button></a></p></td></tr>  
   </table>
-  <h3 id="debug"></h3>
+  <h3 id="debug">%DEBUG%</h3>
   <script>
   function on(id) {
     var xhr = new XMLHttpRequest();
