@@ -151,7 +151,7 @@ void XML_callback(uint8_t statusflags, char* tagName, uint16_t tagNameLen, char*
   if (!(statusflags & STATUS_TAG_TEXT)) {
     return;  // only care about getting the tag data
   }
-  if (!strcasecmp(tagName, "/RadioInfo/Freq")) {
+  if (!strcasecmp(tagName, "/RadioInfo/Freq") || !strcasecmp(tagName, "/PST/AZIMUTH")) {
     WebSerial.printf("Received Packet to change to band %d which is antenna %d\n", band(atoi(data)), findBestAntenna(band(atoi(data))));
     currentBand = band(atoi(data));
     if (currentBand != manualLocked) {
