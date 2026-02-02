@@ -97,7 +97,7 @@ void loop() {
   handleXMLPacket();
 
   // If we've been sitting around in a state where we might have come up before wifi for too long, restart
-  if (eligibleForRestart && millis() > UNCONFIGURED_LIFE) {
+  if (eligibleForRestart && (millis() > UNCONFIGURED_LIFE)) {
     ESP.reset();
   }
 }
@@ -328,27 +328,29 @@ String wifi_processor(const String& var) {
   if (var == "FOUND_NETWORKS") {
     return String("Network scanning disabled...");
   }
-  if (var == "xxxFOUND_NETWORKS") {
+  if (var == "xxFOUND_NETWORKS") {
     int n = WiFi.scanNetworks();
-    Serial.printf("There are %d networks\n", n);
+    WebSerial.printf("There are %d networks\n", n);
     if (n == 0) {
-      Serial.println("no networks found");
+      WebSerial.println("no networks found");
       return String("No networks found.");
     } else {
-      String foundNetworks = String("<ol>");
+     // String foundNetworks = String("<ol>");
       for (int i = 0; i < n; i++) {
         // Print SSID and RSSI for each network found
-        foundNetworks += "<li>";
+      /*  foundNetworks += "<li>";
         foundNetworks += WiFi.SSID(i);
         foundNetworks += " (";
         foundNetworks += WiFi.RSSI(i);
 
         foundNetworks += ")";
         foundNetworks += (WiFi.encryptionType(i) == ENC_TYPE_NONE) ? " " : "*";
-        foundNetworks += "</li>";
+        foundNetworks += "</li>";*/
+        WebSerial.printf("%s - %s\n", WiFi.SSID(i), WiFi.RSSI(i));
       }
-      foundNetworks += "</ol>";
-      return (foundNetworks);
+      //foundNetworks += "</ol>";
+      //return (foundNetworks);
+      return String("Found networks but this is diabled");
     }
   }
 
